@@ -129,6 +129,8 @@ def crete_candle_cart(timeframe , max_POCs , max_TPOs , data):
     fig.add_trace(go.Scatter(x=POCs['time'], y=POCs['POC'], mode='markers', name='POC'), row=1, col=1)
     fig.add_trace(go.Scatter(x=TPOs['time'], y=TPOs['TPO'], mode='markers', name='TPO'), row=1, col=1)
     
+    fig.update_layout(title=f"{ticket} {timeframe} chart", yaxis_title='Price (USD)')
+    
     return fig
 
             
