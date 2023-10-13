@@ -88,8 +88,41 @@ def create_bar_chart(data, name , time):
         fig.add_trace(bar_trace, row=1, col=index+1)
 
     # Update layout for subplot grid
-    fig.update_layout(title_text=f'{name} Chart')
+    fig.update_layout(title_text=f'{name} Chart' , showlegend=False)
             
+    return fig
+
+def crete_candle_cart(timeframe , max_POCs , max_TPOs):
+    ticket = "BTC-USD"
+    right_now = dt.datetime.now()
+    if timeframe == "1h":
+        ago = right_now - dt.timedelta(hours=19)
+        data = yf.download(ticket, start=ago, end= right_now, interval= timeframe)
+    elif timeframe == "1d":
+        ago = right_now - dt.timedelta(days=19)
+        data = yf.download(ticket, start=ago, end= right_now, interval= timeframe)
+    elif timeframe == "1w":
+        ago = right_now - dt.timedelta(weeks=19)
+        data = yf.download(ticket, start=ago, end= right_now, interval= timeframe)
+    fig = sp.make_subplots(rows=1, cols=1)    
+    fig.add_trace(go.Candlestick(x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'], name='market data'), row=1, col=1)
+    
+    POCs = pd.DataFrame(max_POCs)
+    POCs = POCs.rename(columns={0: 'POC'})
+    POCs['time'] = data.index
+    
+    TPOs = pd.DataFrame(max_TPOs)
+    TPOs = TPOs.rename(columns={0: 'TPO'})
+    TPOs['time'] = data.index
+    
+    fig.add_trace(go.Scatter(x=POCs['time'], y=POCs['POC'], mode='markers', name='POC'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=TPOs['time'], y=TPOs['TPO'], mode='markers', name='TPO'), row=1, col=1)
+    
+    st.write(POCs)
     return fig
 
             
@@ -101,7 +134,22 @@ if timeframe == "1h":
     interval = "1m"
     df = get_data(ticket, timeframe , interval)
     POCS = POC(df)
+    max_POCs = []
+    max_TPOs = []
+    for poc in POCS:
+        # get max value
+        max_value = max(poc.values())
+        # get key corresponding to max value
+        max_keys = [k for k, v in poc.items() if v == max_value]
+        max_POCs.append(max_keys)
     TP0S = TPO(df)
+    for tpo in TP0S:
+        # get max value
+        max_value = max(tpo.values())
+        # get key corresponding to max value
+        max_keys = [k for k, v in tpo.items() if v == max_value]
+        max_TPOs.append(max_keys)
+    
 
 elif timeframe == "1d":
     interval = "5m"
@@ -115,7 +163,7 @@ elif timeframe == "1w":
     POCS = POC(df)
     TP0S = TPO(df)
 
-    
+st.plotly_chart(crete_candle_cart(timeframe , max_POCs , max_TPOs), use_container_width=True)
 st.plotly_chart(create_bar_chart(POCS, 'POC' , timeframe), use_container_width=True)
 st.write('---')
 st.plotly_chart(create_bar_chart(TP0S, 'TPO' , timeframe), use_container_width=True)
