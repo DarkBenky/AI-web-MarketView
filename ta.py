@@ -14,10 +14,8 @@ st.set_page_config(
 @st.cache_data()
 def get_data(ticket, period ,timeframe ):
     data = []
-    current_time = dt.datetime.now().strftime("%d-%m-%Y %H:%M")
+    current_time = dt.datetime.now()
     temp = current_time
-    # convert temp to datetime
-    temp = dt.datetime.strptime(temp, "%d-%m-%Y %H:%M")
     
     converter = {
         '1h' : 1,
@@ -25,16 +23,24 @@ def get_data(ticket, period ,timeframe ):
         '1w' : 168
     }
     
-    for _ in range(20):
+    high_low_open_close = []
+    
+    while len(data) < 20:
         try:
-            df = yf.download(ticket, start=temp - dt.timedelta(hours=converter[period]), end= temp, interval= timeframe)
+            start = str(temp - dt.timedelta(hours=converter[period])).split(':')[0]+":00"
+            start = pd.to_datetime(start)
+            end = str(temp).split(':')[0]+":00"
+            end = pd.to_datetime(end)
+            # st.write(start , end)
+            df = yf.download(ticket, start=start, end=end, interval= timeframe)
             if df.empty == False:
                 data.append(df)
+                # st.write(df)
+                high_low_open_close.append([df['Open'][0] , df['Close'][-1] , max(df['High']) , min(df['Low'])])
             temp = temp - dt.timedelta(hours=converter[period])
         except Exception as e:
-            #st.write('Error', e)
-            break
-    return data
+            pass
+    return data , high_low_open_close
 
 st.cache_data()           
 def POC(data):
@@ -92,18 +98,12 @@ def create_bar_chart(data, name , time):
             
     return fig
 
-def crete_candle_cart(timeframe , max_POCs , max_TPOs):
+def crete_candle_cart(timeframe , max_POCs , max_TPOs , data):
     ticket = "BTC-USD"
     right_now = dt.datetime.now()
-    if timeframe == "1h":
-        ago = right_now - dt.timedelta(hours=19)
-        data = yf.download(ticket, start=ago, end= right_now, interval= timeframe)
-    elif timeframe == "1d":
-        ago = right_now - dt.timedelta(days=19)
-        data = yf.download(ticket, start=ago, end= right_now, interval= timeframe)
-    elif timeframe == "1w":
-        ago = right_now - dt.timedelta(weeks=19)
-        data = yf.download(ticket, start=ago, end= right_now, interval= timeframe)
+    
+    data = pd.DataFrame(data).rename(columns={0: 'Open', 1: 'Close', 2: 'High', 3: 'Low'})
+    
     fig = sp.make_subplots(rows=1, cols=1)    
     fig.add_trace(go.Candlestick(x=data.index,
                     open=data['Open'],
@@ -111,9 +111,16 @@ def crete_candle_cart(timeframe , max_POCs , max_TPOs):
                     low=data['Low'],
                     close=data['Close'], name='market data'), row=1, col=1)
     
+    
+    for i in range(len(max_POCs)-len(data.index)):
+        max_POCs.pop()
+    
     POCs = pd.DataFrame(max_POCs)
     POCs = POCs.rename(columns={0: 'POC'})
     POCs['time'] = data.index
+    
+    for i in range(len(max_TPOs)-len(data.index)):
+        max_TPOs.pop()
     
     TPOs = pd.DataFrame(max_TPOs)
     TPOs = TPOs.rename(columns={0: 'TPO'})
@@ -122,7 +129,6 @@ def crete_candle_cart(timeframe , max_POCs , max_TPOs):
     fig.add_trace(go.Scatter(x=POCs['time'], y=POCs['POC'], mode='markers', name='POC'), row=1, col=1)
     fig.add_trace(go.Scatter(x=TPOs['time'], y=TPOs['TPO'], mode='markers', name='TPO'), row=1, col=1)
     
-    st.write(POCs)
     return fig
 
             
@@ -132,7 +138,7 @@ ticket = "BTC-USD"
 
 if timeframe == "1h":
     interval = "1m"
-    df = get_data(ticket, timeframe , interval)
+    df , high_low_close_open= get_data(ticket, timeframe , interval)
     POCS = POC(df)
     max_POCs = []
     max_TPOs = []
@@ -153,17 +159,45 @@ if timeframe == "1h":
 
 elif timeframe == "1d":
     interval = "5m"
-    df = get_data(ticket, timeframe , interval)
+    df , high_low_close_open= get_data(ticket, timeframe , interval)
     POCS = POC(df)
+    max_POCs = []
+    max_TPOs = []
+    for poc in POCS:
+        # get max value
+        max_value = max(poc.values())
+        # get key corresponding to max value
+        max_keys = [k for k, v in poc.items() if v == max_value]
+        max_POCs.append(max_keys)
     TP0S = TPO(df)
+    for tpo in TP0S:
+        # get max value
+        max_value = max(tpo.values())
+        # get key corresponding to max value
+        max_keys = [k for k, v in tpo.items() if v == max_value]
+        max_TPOs.append(max_keys)
 
 elif timeframe == "1w":
     interval = "1h"
-    df = get_data(ticket, timeframe , interval)
+    df , high_low_close_open= get_data(ticket, timeframe , interval)
     POCS = POC(df)
+    max_POCs = []
+    max_TPOs = []
+    for poc in POCS:
+        # get max value
+        max_value = max(poc.values())
+        # get key corresponding to max value
+        max_keys = [k for k, v in poc.items() if v == max_value]
+        max_POCs.append(max_keys)
     TP0S = TPO(df)
-
-st.plotly_chart(crete_candle_cart(timeframe , max_POCs , max_TPOs), use_container_width=True)
+    for tpo in TP0S:
+        # get max value
+        max_value = max(tpo.values())
+        # get key corresponding to max value
+        max_keys = [k for k, v in tpo.items() if v == max_value]
+        max_TPOs.append(max_keys)
+    
+st.plotly_chart(crete_candle_cart(timeframe , max_POCs , max_TPOs , high_low_close_open), use_container_width=True)
 st.plotly_chart(create_bar_chart(POCS, 'POC' , timeframe), use_container_width=True)
 st.write('---')
 st.plotly_chart(create_bar_chart(TP0S, 'TPO' , timeframe), use_container_width=True)
